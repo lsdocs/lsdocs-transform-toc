@@ -20,7 +20,9 @@ use serde_json::{Value, json};
 
 /// The plugin, as registered with the host.
 pub fn plugin() -> Plugin {
-    Plugin::new("transform-toc", env!("CARGO_PKG_VERSION")).transformer(Toc)
+    Plugin::new("transform-toc", env!("CARGO_PKG_VERSION"))
+        .transformer(Toc)
+        .cacheable()
 }
 
 /// The table-of-contents transformer.
