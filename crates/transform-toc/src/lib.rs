@@ -1,15 +1,16 @@
 //! First-party table-of-contents transformer plugin.
 //!
-//! Collects each document's headings, then inserts a list of links to them
-//! after the document's first heading. Headings deeper than the one before
-//! them are nested under it. Documents with fewer than two headings are left
-//! alone.
+//! Collects each document's section tree, then inserts a nested list of
+//! links to the sections into the document's first section, right after its
+//! title. The first section is taken as the page title, so the list holds
+//! its subsections followed by any later top-level sections. Documents with
+//! nothing to list are left alone.
 //!
 //! Options (`[[plugins]] options = { depth = 3 }`): `depth` is the deepest
 //! heading level listed (default 3).
 
 use lsdocs_plugin_sdk::doctree::{
-    Custom, Document, Heading, Link, List, ListItem, Node, Paragraph, plain_text, text,
+    Custom, Link, List, ListItem, Node, Paragraph, Section, plain_text, text,
 };
 use lsdocs_plugin_sdk::protocol::{
     TransformApplyParams, TransformApplyResult, TransformCollectParams, TransformCollectResult,
@@ -30,7 +31,7 @@ impl Transformer for Toc {
     const COLLECTS: bool = true;
 
     fn nodes(&self) -> Vec<String> {
-        vec!["heading".into()]
+        vec!["section".into()]
     }
 
     async fn collect(
@@ -43,14 +44,8 @@ impl Transformer for Toc {
             .get("depth")
             .and_then(Value::as_u64)
             .unwrap_or(3);
-        let headings: Vec<Value> = headings(&params.document)
-            .filter(|h| u64::from(h.level) <= depth)
-            .filter_map(|h| {
-                Some(json!({"id": h.id.clone()?, "level": h.level, "title": plain_text(&h.children)}))
-            })
-            .collect();
         Ok(TransformCollectResult {
-            data: json!({ "headings": headings }),
+            data: json!({ "sections": entries(&params.document.children, depth) }),
             diagnostics: vec![],
         })
     }
@@ -65,18 +60,23 @@ impl Transformer for Toc {
         let entries = params
             .collected
             .get(&document.source)
-            .and_then(|d| d.get("headings"))
+            .and_then(|d| d.get("sections"))
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        if entries.len() >= 2 {
-            let toc = toc_node(&entries[1..]);
-            let first_heading = document
-                .children
-                .iter()
-                .position(|n| matches!(n, Node::Heading(_)))
-                .map_or(0, |i| i + 1);
-            document.children.insert(first_heading, toc);
+        if let Some((first, rest)) = entries.split_first() {
+            let mut items = first["children"].as_array().cloned().unwrap_or_default();
+            items.extend(rest.iter().cloned());
+            let title_section = document.children.iter_mut().find_map(|n| match n {
+                Node::Section(s) => Some(s),
+                _ => None,
+            });
+            if !items.is_empty()
+                && let Some(section) = title_section
+            {
+                let at = usize::from(matches!(section.children.first(), Some(Node::Heading(_))));
+                section.children.insert(at, toc_node(&items));
+            }
         }
         Ok(TransformApplyResult {
             document,
@@ -85,14 +85,36 @@ impl Transformer for Toc {
     }
 }
 
-fn headings(doc: &Document) -> impl Iterator<Item = &Heading> {
-    doc.descendants().filter_map(|n| match n {
-        Node::Heading(h) => Some(h),
-        _ => None,
-    })
+/// The sections among `nodes`, as `{id, title, children}` entries, leaving
+/// out sections whose title is deeper than `depth`.
+fn entries(nodes: &[Node], depth: u64) -> Vec<Value> {
+    nodes
+        .iter()
+        .filter_map(|node| {
+            let Node::Section(Section {
+                id: Some(id),
+                children,
+                ..
+            }) = node
+            else {
+                return None;
+            };
+            let Some(Node::Heading(heading)) = children.first() else {
+                return None;
+            };
+            if u64::from(heading.level) > depth {
+                return None;
+            }
+            Some(json!({
+                "id": id,
+                "title": plain_text(&heading.children),
+                "children": entries(&children[1..], depth),
+            }))
+        })
+        .collect()
 }
 
-/// A `custom:toc` node wrapping a (nested) list of links.
+/// A `custom:toc` node wrapping a nested list of links.
 fn toc_node(entries: &[Value]) -> Node {
     Node::Custom(Custom {
         kind: "toc".into(),
@@ -101,43 +123,33 @@ fn toc_node(entries: &[Value]) -> Node {
     })
 }
 
-fn level(entry: &Value) -> u64 {
-    entry["level"].as_u64().unwrap_or_default()
-}
-
-/// A list of links to `entries`. Each entry is followed by the entries
-/// deeper than it, which become a nested list inside its item.
+/// A list of links to `entries`, with each entry's children nested inside
+/// its item.
 fn list(entries: &[Value]) -> Node {
-    let mut items = Vec::new();
-    let mut i = 0;
-    while i < entries.len() {
-        let entry = &entries[i];
-        let end = entries[i + 1..]
-            .iter()
-            .position(|e| level(e) <= level(entry))
-            .map_or(entries.len(), |n| i + 1 + n);
-        let id = entry["id"].as_str().unwrap_or_default();
-        let title = entry["title"].as_str().unwrap_or_default();
-        let mut children = vec![Node::Paragraph(Paragraph {
-            children: vec![Node::Link(Link {
-                url: format!("#{id}"),
-                children: vec![text(title)],
-                ..Link::default()
-            })],
-            ..Paragraph::default()
-        })];
-        if end > i + 1 {
-            children.push(list(&entries[i + 1..end]));
-        }
-        items.push(
+    let items = entries
+        .iter()
+        .map(|entry| {
+            let id = entry["id"].as_str().unwrap_or_default();
+            let title = entry["title"].as_str().unwrap_or_default();
+            let mut children = vec![Node::Paragraph(Paragraph {
+                children: vec![Node::Link(Link {
+                    url: format!("#{id}"),
+                    children: vec![text(title)],
+                    ..Link::default()
+                })],
+                ..Paragraph::default()
+            })];
+            let nested = entry["children"].as_array().cloned().unwrap_or_default();
+            if !nested.is_empty() {
+                children.push(list(&nested));
+            }
             ListItem {
                 children,
                 ..ListItem::default()
             }
-            .into(),
-        );
-        i = end;
-    }
+            .into()
+        })
+        .collect();
     Node::List(List {
         children: items,
         ..List::default()
@@ -147,33 +159,22 @@ fn list(entries: &[Value]) -> Node {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lsdocs_plugin_sdk::doctree::{Document, Heading};
+    use lsdocs_plugin_sdk::protocol::InitializeParams;
+    use lsdocs_plugin_sdk::testing;
 
-    fn heading(level: u8, id: &str) -> Node {
-        Node::Heading(Heading {
+    fn section(level: u8, id: &str, children: Vec<Node>) -> Node {
+        let mut all = vec![Node::Heading(Heading {
             level,
-            id: Some(id.into()),
             children: vec![text(id.to_uppercase())],
             ..Heading::default()
+        })];
+        all.extend(children);
+        Node::Section(Section {
+            id: Some(id.into()),
+            children: all,
+            ..Section::default()
         })
-    }
-
-    #[test]
-    fn toc_lists_later_headings_after_the_first() {
-        let entries = [
-            json!({"id": "top", "level": 1, "title": "TOP"}),
-            json!({"id": "a", "level": 2, "title": "A"}),
-        ];
-        let Node::Custom(toc) = toc_node(&entries[1..]) else {
-            panic!()
-        };
-        assert_eq!(toc.kind, "toc");
-        let Node::List(list) = &toc.children[0] else {
-            panic!()
-        };
-        assert_eq!(list.children.len(), 1);
-        let mut doc = Document::new("x.md");
-        doc.children = vec![heading(1, "top"), heading(2, "a")];
-        assert_eq!(headings(&doc).count(), 2);
     }
 
     /// Item titles of a list, with nested lists in brackets.
@@ -193,12 +194,49 @@ mod tests {
         items.join(" ")
     }
 
-    #[test]
-    fn deeper_headings_nest() {
-        let entries: Vec<Value> = [(2, "a"), (3, "b"), (4, "c"), (3, "d"), (2, "e"), (4, "f")]
-            .into_iter()
-            .map(|(level, id)| json!({"id": id, "level": level, "title": id}))
-            .collect();
-        assert_eq!(outline(&list(&entries)), "a[b[c] d] e[f]");
+    async fn run(depth: u64, children: Vec<Node>) -> Document {
+        let mut doc = Document::new("a.md");
+        doc.children = children;
+        let init = InitializeParams {
+            options: json!({ "depth": depth }),
+            ..InitializeParams::default()
+        };
+        let mut out = testing::run_transform(&plugin(), &init, vec![doc])
+            .await
+            .unwrap();
+        out.remove(0).0
+    }
+
+    #[tokio::test]
+    async fn lists_the_section_tree_after_the_title() {
+        let doc = run(
+            3,
+            vec![
+                section(
+                    1,
+                    "top",
+                    vec![
+                        section(2, "a", vec![section(3, "b", vec![section(4, "c", vec![])])]),
+                        section(2, "d", vec![]),
+                    ],
+                ),
+                section(1, "e", vec![]),
+            ],
+        )
+        .await;
+        let Node::Section(top) = &doc.children[0] else {
+            panic!()
+        };
+        let Node::Custom(toc) = &top.children[1] else {
+            panic!("{top:?}")
+        };
+        assert_eq!(toc.kind, "toc");
+        assert_eq!(outline(&toc.children[0]), "A[B] D E");
+    }
+
+    #[tokio::test]
+    async fn a_lone_title_gets_no_toc() {
+        let doc = run(3, vec![section(1, "top", vec![section(4, "deep", vec![])])]).await;
+        assert!(!doc.descendants().any(|n| n.kind() == "custom:toc"));
     }
 }
