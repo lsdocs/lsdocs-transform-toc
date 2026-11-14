@@ -1,8 +1,9 @@
 //! First-party table-of-contents transformer plugin.
 //!
 //! Collects each document's headings, then inserts a list of links to them
-//! after the document's first heading. Documents with fewer than two
-//! headings are left alone.
+//! after the document's first heading. Headings deeper than the one before
+//! them are nested under it. Documents with fewer than two headings are left
+//! alone.
 //!
 //! Options (`[[plugins]] options = { depth = 3 }`): `depth` is the deepest
 //! heading level listed (default 3).
@@ -103,34 +104,55 @@ fn plain_text(nodes: &[Node]) -> String {
     out
 }
 
-/// A `custom:toc` node wrapping a list of links.
+/// A `custom:toc` node wrapping a (nested) list of links.
 fn toc_node(entries: &[Value]) -> Node {
-    let items = entries
-        .iter()
-        .map(|e| {
-            let id = e["id"].as_str().unwrap_or_default();
-            let title = e["title"].as_str().unwrap_or_default();
-            ListItem {
-                children: vec![Node::Paragraph(Paragraph {
-                    children: vec![Node::Link(Link {
-                        url: format!("#{id}"),
-                        children: vec![text(title)],
-                        ..Link::default()
-                    })],
-                    ..Paragraph::default()
-                })],
-                ..ListItem::default()
-            }
-            .into()
-        })
-        .collect();
     Node::Custom(Custom {
         kind: "toc".into(),
-        children: vec![Node::List(List {
-            children: items,
-            ..List::default()
-        })],
+        children: vec![list(entries)],
         ..Custom::default()
+    })
+}
+
+fn level(entry: &Value) -> u64 {
+    entry["level"].as_u64().unwrap_or_default()
+}
+
+/// A list of links to `entries`. Each entry is followed by the entries
+/// deeper than it, which become a nested list inside its item.
+fn list(entries: &[Value]) -> Node {
+    let mut items = Vec::new();
+    let mut i = 0;
+    while i < entries.len() {
+        let entry = &entries[i];
+        let end = entries[i + 1..]
+            .iter()
+            .position(|e| level(e) <= level(entry))
+            .map_or(entries.len(), |n| i + 1 + n);
+        let id = entry["id"].as_str().unwrap_or_default();
+        let title = entry["title"].as_str().unwrap_or_default();
+        let mut children = vec![Node::Paragraph(Paragraph {
+            children: vec![Node::Link(Link {
+                url: format!("#{id}"),
+                children: vec![text(title)],
+                ..Link::default()
+            })],
+            ..Paragraph::default()
+        })];
+        if end > i + 1 {
+            children.push(list(&entries[i + 1..end]));
+        }
+        items.push(
+            ListItem {
+                children,
+                ..ListItem::default()
+            }
+            .into(),
+        );
+        i = end;
+    }
+    Node::List(List {
+        children: items,
+        ..List::default()
     })
 }
 
@@ -164,5 +186,31 @@ mod tests {
         let mut doc = Document::new("x.md");
         doc.children = vec![heading(1, "top"), heading(2, "a")];
         assert_eq!(headings(&doc).count(), 2);
+    }
+
+    /// Item titles of a list, with nested lists in brackets.
+    fn outline(list: &Node) -> String {
+        let Node::List(list) = list else { panic!() };
+        let items: Vec<String> = list
+            .children
+            .iter()
+            .map(|item| {
+                let title = plain_text(item.children()[0].children());
+                match item.children().get(1) {
+                    Some(nested) => format!("{title}[{}]", outline(nested)),
+                    None => title,
+                }
+            })
+            .collect();
+        items.join(" ")
+    }
+
+    #[test]
+    fn deeper_headings_nest() {
+        let entries: Vec<Value> = [(2, "a"), (3, "b"), (4, "c"), (3, "d"), (2, "e"), (4, "f")]
+            .into_iter()
+            .map(|(level, id)| json!({"id": id, "level": level, "title": id}))
+            .collect();
+        assert_eq!(outline(&list(&entries)), "a[b[c] d] e[f]");
     }
 }
