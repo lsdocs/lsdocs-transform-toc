@@ -9,7 +9,7 @@
 //! heading level listed (default 3).
 
 use lsdocs_plugin_sdk::doctree::{
-    Custom, Document, Heading, Link, List, ListItem, Node, Paragraph, text,
+    Custom, Document, Heading, Link, List, ListItem, Node, Paragraph, plain_text, text,
 };
 use lsdocs_plugin_sdk::protocol::{
     TransformApplyParams, TransformApplyResult, TransformCollectParams, TransformCollectResult,
@@ -90,18 +90,6 @@ fn headings(doc: &Document) -> impl Iterator<Item = &Heading> {
         Node::Heading(h) => Some(h),
         _ => None,
     })
-}
-
-fn plain_text(nodes: &[Node]) -> String {
-    let mut out = String::new();
-    for node in nodes {
-        match node {
-            Node::Text(t) => out.push_str(&t.value),
-            Node::InlineCode(c) => out.push_str(&c.value),
-            other => out.push_str(&plain_text(other.children())),
-        }
-    }
-    out
 }
 
 /// A `custom:toc` node wrapping a (nested) list of links.
