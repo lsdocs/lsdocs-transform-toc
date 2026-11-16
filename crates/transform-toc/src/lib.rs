@@ -160,6 +160,7 @@ fn list(entries: &[Value]) -> Node {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::panic)]
     use super::*;
     use lsdocs_plugin_sdk::doctree::{Document, Heading};
     use lsdocs_plugin_sdk::protocol::InitializeParams;
