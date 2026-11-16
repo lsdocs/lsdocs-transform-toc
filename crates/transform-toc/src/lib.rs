@@ -49,6 +49,7 @@ impl Transformer for Toc {
         Ok(TransformCollectResult {
             data: json!({ "sections": entries(&params.document.children, depth) }),
             diagnostics: vec![],
+            dependencies: vec![],
         })
     }
 
@@ -83,6 +84,7 @@ impl Transformer for Toc {
         Ok(TransformApplyResult {
             document,
             diagnostics: vec![],
+            dependencies: vec![],
         })
     }
 }
