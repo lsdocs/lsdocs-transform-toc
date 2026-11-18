@@ -22,6 +22,7 @@ use serde_json::{Value, json};
 /// The plugin, as registered with the host.
 pub fn plugin() -> Plugin {
     Plugin::new("transform-toc", env!("CARGO_PKG_VERSION"))
+        .settings(|c| lsdocs_plugin_sdk::config::settings_toml_keys(c, &["depth"]))
         .transformer(Toc)
         .cacheable()
 }
@@ -43,7 +44,7 @@ impl Transformer for Toc {
         ctx: &Context,
     ) -> PluginResult<ParseTransformEachResult> {
         let depth = ctx
-            .options()
+            .settings()
             .get("depth")
             .and_then(Value::as_u64)
             .unwrap_or(3);
@@ -203,10 +204,10 @@ mod tests {
     async fn run(depth: u64, children: Vec<Node>) -> Document {
         let mut doc = Document::new("a.md");
         doc.children = children;
-        let init = InitializeParams {
-            options: json!({ "depth": depth }),
-            ..InitializeParams::default()
-        };
+        let init = lsdocs_plugin_sdk::Setup::with_settings(
+            InitializeParams::default(),
+            json!({ "depth": depth }),
+        );
         let mut out = testing::run_transform(&plugin(), &init, vec![doc])
             .await
             .unwrap();
