@@ -22,7 +22,12 @@ use serde_json::{Value, json};
 /// The plugin, as registered with the host.
 pub fn plugin() -> Plugin {
     Plugin::new("transform-toc", env!("CARGO_PKG_VERSION"))
-        .settings(|c| lsdocs_plugin_sdk::config::settings_toml_keys(c, &["depth"]))
+        .settings(|c| {
+            lsdocs_plugin_sdk::config::settings_toml_keys(
+                c,
+                &[("depth", lsdocs_plugin_sdk::config::Kind::Integer)],
+            )
+        })
         .transformer(Toc)
         .cacheable()
 }
