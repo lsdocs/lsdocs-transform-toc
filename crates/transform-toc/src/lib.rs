@@ -6,8 +6,8 @@
 //! its subsections followed by any later top-level sections. Documents with
 //! nothing to list are left alone.
 //!
-//! Options (`[[plugins]] options = { depth = 3 }`): `depth` is the deepest
-//! heading level listed (default 3).
+//! Settings (`.config/lsdocs/<name>/settings.toml`): `depth` is the
+//! deepest heading level listed (default 3).
 
 use lsdocs_plugin_sdk::doctree::{
     Custom, Link, List, ListItem, Node, Paragraph, Section, plain_text, text,
