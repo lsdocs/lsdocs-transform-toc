@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/*",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# The base MSRV; crates needing more set their own (`nur msrv` checks
+# each crate on its own).
+rust-version = "1.89"
+license = "Apache-2.0 OR MIT"
+# Nothing is published until package names are checked on crates.io.
+publish = false
+
+[workspace.dependencies]
+lsdocs-plugin-sdk = { git = "https://github.com/lsdocs/lsdocs-plugin-sdk", branch = "main", version = "0.1.0" }
+
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", default-features = false }
+
+[workspace.lints.rust]
+# `deny` rather than `forbid` so the rpc crate can opt in locally with
+# `#[allow(unsafe_code)]` for handle duplication (Phase 2).
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# Library and binary code returns errors instead of panicking. Tests opt
+# out with `#![allow(clippy::unwrap_used, ...)]` at the top of the module.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
