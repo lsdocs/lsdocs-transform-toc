@@ -33,7 +33,7 @@ def "nur test" [] {
 # Fails if a crate of the organization is built twice (two sources, or a
 # `[patch]` applied on one side only).
 def "nur check-dupes" [] {
-    let found = org dupes (cargo-org tree --workspace --duplicates -e normal,build,dev | complete | get stdout)
+    let found = org tree-dupes (cargo-org tree --workspace --duplicates -e normal,build,dev | complete)
     if ($found | is-not-empty) {
         error make --unspanned {msg: $"built twice: ($found | str join ', ')"}
     }
@@ -44,7 +44,10 @@ def "nur check-dupes" [] {
 # a git dependency on the organization repository holding it.
 def "nur check-git-deps" [] {
     let manifests = glob "{Cargo.toml,crates/*/Cargo.toml,bindings/*/Cargo.toml,tools/*/Cargo.toml}"
-    let errors = $manifests | each {|m| org check-git-deps (open $m) (org-map) | each {|e| $"($m): ($e)" } } | flatten
+    let errors = $manifests | each {|m|
+        let dir = $m | path dirname | path relative-to $env.PWD | str replace --all '\' '/' | if $in == "" { "." } else { $in }
+        org check-git-deps (open $m) (org-map) --dir $dir | each {|e| $"($m): ($e)" }
+    } | flatten
     if ($errors | is-not-empty) {
         for e in $errors { print -e $"error: ($e)" }
         error make --unspanned {msg: "check-git-deps failed"}
@@ -74,6 +77,32 @@ def "nur unlink" [name?: string] {
     let config = open $file
     let patch = if $name == null { {} } else { $config | get -o patch | default {} | reject -o $"($org.ORG_URL)/($name)" }
     $config | upsert patch $patch | to toml | save -f $file
+}
+
+# Checks each crate on its own `rust-version` (installing the toolchains),
+# without default features, then the workspace on the highest one.
+def "nur msrv" [] {
+    let groups = (
+        cargo-org metadata --no-deps --format-version 1 | from json | get packages
+        | select name rust_version | group-by rust_version
+        | transpose version crates
+        | sort-by {|g| $g.version | split row "." | each { into int } | $in.0 * 1000 + $in.1 }
+    )
+    for group in $groups {
+        rustup toolchain install $group.version --profile minimal --no-self-update
+        let names = $group.crates | get name
+        print $"Rust ($group.version): ($names | str join ', ')"
+        cargo-org $"+($group.version)" check --no-default-features ...($names | each {|n| [-p $n] } | flatten)
+    }
+    let highest = $groups | last | get version
+    print $"Rust ($highest): the workspace, default features"
+    cargo-org $"+($highest)" check --workspace
+}
+
+# Licenses, advisories and sources of the dependencies (deny.toml; needs
+# cargo-deny, from mise).
+def "nur deny" [] {
+    cargo-org deny check
 }
 
 # Updates the lockfile's revision of organization crates (all, or one).

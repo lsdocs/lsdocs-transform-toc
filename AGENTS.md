@@ -18,8 +18,11 @@ Other lsdocs repositories are git dependencies
   organization's repositories from the local clones there (their
   committed `main`) instead of GitHub.
 - `nur check-dupes` fails if a crate of the organization is built twice;
-  `nur check-git-deps` fails on a dependency that is not a path here or a
-  git dependency on the repository holding it (`scripts/org.nuon`).
+  `nur check-git-deps` fails on a dependency that is not a path inside
+  this repository or a git dependency on the repository holding it
+  (`scripts/org.nuon`), and on a committed `[patch]` table. `nur msrv`
+  checks each crate on its own `rust-version`; `nur deny` runs
+  cargo-deny (both are CI jobs of their own).
 
 ## Dev tasks
 
