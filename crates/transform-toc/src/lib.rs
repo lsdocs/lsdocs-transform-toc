@@ -1,13 +1,18 @@
 //! First-party table-of-contents transformer plugin.
 //!
-//! Collects each document's section tree, then inserts a nested list of
-//! links to the sections into the document's first section, right after its
-//! title. The first section is taken as the page title, so the list holds
-//! its subsections followed by any later top-level sections. Documents with
-//! nothing to list are left alone.
+//! Collects each document's section tree and writes it to the document's
+//! `toc` metadata: `[{id, title, level, children}]`, for themes to show. A
+//! first section with a level 1 heading is the page title and is left out
+//! (its subsections are listed in its place, followed by any later
+//! top-level sections).
+//!
+//! With `inline = true` it also inserts a nested list of links to the same
+//! entries into the document's first section, right after its title.
+//! Documents with nothing to list are left alone.
 //!
 //! Settings (`.config/lsdocs/<name>/settings.toml`): `depth` is the
-//! deepest heading level listed (default 3).
+//! deepest heading level listed (default 3); `inline` also inserts the
+//! list into the page (default `false`).
 
 use lsdocs_plugin_sdk::doctree::{
     Custom, Link, List, ListItem, Node, Paragraph, Section, plain_text, text,
@@ -25,7 +30,10 @@ pub fn plugin() -> Plugin {
         .settings(|c| {
             lsdocs_plugin_sdk::config::settings_toml_keys(
                 c,
-                &[("depth", lsdocs_plugin_sdk::config::Kind::Integer)],
+                &[
+                    ("depth", lsdocs_plugin_sdk::config::Kind::Integer),
+                    ("inline", lsdocs_plugin_sdk::config::Kind::Bool),
+                ],
             )
         })
         .transformer(Toc)
@@ -63,7 +71,7 @@ impl Transformer for Toc {
     async fn apply(
         &self,
         params: RenderTransformEachParams,
-        _ctx: &Context,
+        ctx: &Context,
     ) -> PluginResult<RenderTransformEachResult> {
         let mut document = params.document;
         // Use what the collect pass gathered for this document.
@@ -75,13 +83,30 @@ impl Transformer for Toc {
             .cloned()
             .unwrap_or_default();
         if let Some((first, rest)) = entries.split_first() {
+            // The page title (a level 1 first section) is not an entry.
+            let mut items = if first["level"] == 1 {
+                first["children"].as_array().cloned().unwrap_or_default()
+            } else {
+                vec![first.clone()]
+            };
+            items.extend(rest.iter().cloned());
+            if !items.is_empty() {
+                document.metadata.insert("toc".into(), Value::Array(items));
+            }
+            // The inline list holds the same, whatever the first section is.
             let mut items = first["children"].as_array().cloned().unwrap_or_default();
             items.extend(rest.iter().cloned());
+            let inline = ctx
+                .settings()
+                .get("inline")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let title_section = document.children.iter_mut().find_map(|n| match n {
                 Node::Section(s) => Some(s),
                 _ => None,
             });
-            if !items.is_empty()
+            if inline
+                && !items.is_empty()
                 && let Some(section) = title_section
             {
                 let at = usize::from(matches!(section.children.first(), Some(Node::Heading(_))));
@@ -96,7 +121,7 @@ impl Transformer for Toc {
     }
 }
 
-/// The sections among `nodes`, as `{id, title, children}` entries, leaving
+/// The sections among `nodes`, as `{id, title, level, children}` entries, leaving
 /// out sections whose title is deeper than `depth`.
 fn entries(nodes: &[Node], depth: u64) -> Vec<Value> {
     nodes
@@ -119,6 +144,7 @@ fn entries(nodes: &[Node], depth: u64) -> Vec<Value> {
             Some(json!({
                 "id": id,
                 "title": plain_text(&heading.children),
+                "level": heading.level,
                 "children": entries(&children[1..], depth),
             }))
         })
@@ -207,12 +233,13 @@ mod tests {
     }
 
     async fn run(depth: u64, children: Vec<Node>) -> Document {
+        run_with(json!({ "depth": depth, "inline": true }), children).await
+    }
+
+    async fn run_with(settings: Value, children: Vec<Node>) -> Document {
         let mut doc = Document::new("a.md");
         doc.children = children;
-        let init = lsdocs_plugin_sdk::Setup::with_settings(
-            InitializeParams::default(),
-            json!({ "depth": depth }),
-        );
+        let init = lsdocs_plugin_sdk::Setup::with_settings(InitializeParams::default(), settings);
         let mut out = testing::run_transform(&plugin(), &init, vec![doc])
             .await
             .unwrap();
@@ -244,6 +271,41 @@ mod tests {
         };
         assert_eq!(toc.kind, "toc");
         assert_eq!(outline(&toc.children[0]), "A[B] D E");
+    }
+
+    #[tokio::test]
+    async fn writes_toc_metadata() {
+        let doc = run_with(
+            json!({}),
+            vec![section(2, "a", vec![section(3, "b", vec![])])],
+        )
+        .await;
+        let toc = &doc.metadata["toc"];
+        assert_eq!(toc[0]["title"], "A");
+        assert_eq!(toc[0]["id"], "a");
+        assert_eq!(toc[0]["level"], 2);
+        assert_eq!(toc[0]["children"][0]["id"], "b");
+        assert_eq!(toc[0]["children"][0]["level"], 3);
+    }
+
+    #[tokio::test]
+    async fn toc_metadata_leaves_out_the_page_title() {
+        let doc = run_with(
+            json!({}),
+            vec![section(1, "top", vec![section(2, "a", vec![])])],
+        )
+        .await;
+        assert_eq!(doc.metadata["toc"][0]["id"], "a");
+        assert_eq!(doc.metadata["toc"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn inline_list_only_when_asked() {
+        let children = || vec![section(1, "top", vec![section(2, "a", vec![])])];
+        let default = run_with(json!({}), children()).await;
+        assert!(!default.descendants().any(|n| n.kind() == "custom:toc"));
+        let asked = run_with(json!({ "inline": true }), children()).await;
+        assert!(asked.descendants().any(|n| n.kind() == "custom:toc"));
     }
 
     #[tokio::test]
