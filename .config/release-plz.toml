@@ -1,0 +1,9 @@
+# release-plz (https://release-plz.dev), run with --config .config/release-plz.toml.
+[workspace]
+# Tags are `<crate>/v<version>`.
+git_tag_name = "{{ package }}/v{{ version }}"
+# The tag workflow (tag.yml) creates the GitHub releases, with gh.
+git_release_enable = false
+# Publish and tag only when the release PR is merged.
+release_always = false
+changelog_update = true
