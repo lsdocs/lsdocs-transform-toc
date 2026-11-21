@@ -10,17 +10,17 @@ permissions: {}
 
 jobs:
   ci:
-    uses: lsdocs/.github/.github/workflows/ci.yml@setup-reusable-ci
+    uses: lsdocs/.github/.github/workflows/ci.yml@main
     permissions:
       contents: read
 
   # Each crate on its own rust-version (nur msrv installs the toolchains).
   msrv:
-    uses: lsdocs/.github/.github/workflows/msrv.yml@setup-reusable-ci
+    uses: lsdocs/.github/.github/workflows/msrv.yml@main
     permissions:
       contents: read
 
   deny:
-    uses: lsdocs/.github/.github/workflows/deny.yml@setup-reusable-ci
+    uses: lsdocs/.github/.github/workflows/deny.yml@main
     permissions:
       contents: read
