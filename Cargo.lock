@@ -81,7 +81,7 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 [[package]]
 name = "lsdocs-doctree"
 version = "0.1.0"
-source = "git+https://github.com/lsdocs/lsdocs-doctree?branch=main#b399c0f6a0d983dbf981561fc6bfe36d574b373f"
+source = "git+https://github.com/lsdocs/lsdocs-doctree?branch=main#0152a847f93ba16d417ab624b0aaa7c559754d22"
 dependencies = [
  "serde",
  "serde_json",
@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "lsdocs-plugin-sdk"
 version = "0.1.0"
-source = "git+https://github.com/lsdocs/lsdocs-plugin-sdk?branch=main#7722b1cacf233d9f4a2639b6c2a4f1b486c02906"
+source = "git+https://github.com/lsdocs/lsdocs-plugin-sdk?branch=main#16e62f50efb2750b219e733f0436f5edb6b194bb"
 dependencies = [
  "lsdocs-protocol",
  "lsdocs-rpc",
@@ -103,7 +103,7 @@ dependencies = [
 [[package]]
 name = "lsdocs-protocol"
 version = "0.1.0"
-source = "git+https://github.com/lsdocs/lsdocs-protocol?branch=main#4605b49be45519ce94eba5ca0ca474f7a2bf8a37"
+source = "git+https://github.com/lsdocs/lsdocs-protocol?branch=main#1d9da41dfa2b3c2c625a58f587817d538118bccc"
 dependencies = [
  "lsdocs-doctree",
  "rmp-serde",
@@ -115,7 +115,7 @@ dependencies = [
 [[package]]
 name = "lsdocs-rpc"
 version = "0.1.0"
-source = "git+https://github.com/lsdocs/lsdocs-plugin-sdk?branch=main#7722b1cacf233d9f4a2639b6c2a4f1b486c02906"
+source = "git+https://github.com/lsdocs/lsdocs-plugin-sdk?branch=main#16e62f50efb2750b219e733f0436f5edb6b194bb"
 dependencies = [
  "bytes",
  "futures-util",
@@ -252,7 +252,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.10",
+ "syn",
 ]
 
 [[package]]
@@ -289,17 +289,6 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.119"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
-
-[[package]]
-name = "syn"
 version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79"
@@ -332,7 +321,7 @@ checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.10",
+ "syn",
 ]
 
 [[package]]
@@ -395,19 +384,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
  "pin-project-lite",
- "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-attributes"
-version = "0.1.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
