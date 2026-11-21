@@ -102,7 +102,7 @@ def "nur msrv" [] {
 # Licenses, advisories and sources of the dependencies (.config/deny.toml).
 # mise installs cargo-deny on first use (.config/mise.deny.toml).
 def "nur deny" [] {
-    with-env ((org org-env) | insert MISE_ENV deny) { ^mise exec -- cargo deny check }
+    with-env ((org org-env) | insert MISE_ENV deny) { ^mise exec cargo:cargo-deny -- cargo deny check }
 }
 
 # Updates the lockfile's revision of organization crates (all, or one).
