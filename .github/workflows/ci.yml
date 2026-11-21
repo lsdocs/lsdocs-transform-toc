@@ -4,38 +4,23 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
-permissions:
-  contents: read
-
-env:
-  CARGO_TERM_COLOR: always
+permissions: {}
 
 jobs:
   ci:
-    name: ci (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - uses: jdx/mise-action@v2
-      - run: nur ci
+    uses: lsdocs/.github/.github/workflows/ci.yml@setup-reusable-ci
+    permissions:
+      contents: read
 
   # Each crate on its own rust-version (nur msrv installs the toolchains).
   msrv:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - uses: jdx/mise-action@v2
-      - run: nur msrv
+    uses: lsdocs/.github/.github/workflows/msrv.yml@setup-reusable-ci
+    permissions:
+      contents: read
 
   deny:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+    uses: lsdocs/.github/.github/workflows/deny.yml@setup-reusable-ci
+    permissions:
+      contents: read
