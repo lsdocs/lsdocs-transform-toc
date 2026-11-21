@@ -1,0 +1,17 @@
+# A `<crate>/v<version>` tag (pushed by release.yml after a release PR is
+# merged) gets its GitHub release, created with gh.
+name: Tag
+
+on:
+  push:
+    tags: ["*/v*"]
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: lsdocs/.github/.github/create-release@main
