@@ -5,14 +5,12 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
 edition = "2024"
 # The base MSRV; crates needing more set their own (`nur msrv` checks
 # each crate on its own).
 rust-version = "1.89"
 license = "Apache-2.0 OR MIT"
-# Nothing is published until package names are checked on crates.io.
-publish = false
+repository = "https://github.com/lsdocs/lsdocs-transform-toc"
 
 [workspace.dependencies]
 lsdocs-plugin-sdk = { git = "https://github.com/lsdocs/lsdocs-plugin-sdk", branch = "main", version = "0.1.0" }

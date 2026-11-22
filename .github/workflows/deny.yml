@@ -1,0 +1,30 @@
+name: Deny
+
+# cargo deny (advisories, licenses, bans, sources): when dependencies
+# change, and weekly, for advisories published since.
+on:
+  push:
+    branches: [main]
+    paths: &deps
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - .config/deny.toml
+      - .github/workflows/deny.yml
+  pull_request:
+    branches: [main]
+    paths: *deps
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deny:
+    uses: lsdocs/.github/.github/workflows/deny.yml@main
+    permissions:
+      contents: read
