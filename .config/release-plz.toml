@@ -7,3 +7,6 @@ git_release_enable = false
 # Publish and tag only when the release PR is merged.
 release_always = false
 changelog_update = true
+# The release PR opens as a draft (release-plz updates it on every push
+# to main); mark it ready for review, then merge it, to release.
+pr_draft = true
