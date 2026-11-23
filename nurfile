@@ -3,6 +3,7 @@
 # repository's own follow.
 
 use scripts/org.nu
+use scripts/org.nu run-cmd
 
 # The organization's repositories and their crates (for `check-git-deps`
 # and `link`).
@@ -12,12 +13,17 @@ def org-map []: nothing -> record { open scripts/org.nuon }
 # PYO3_BUILD_EXTENSION_MODULE builds pyo3 crates as extension modules (no
 # libpython link), as maturin does, so plain cargo builds of them work.
 def --wrapped cargo-org [...args] {
+    with-env ((org org-env) | insert PYO3_BUILD_EXTENSION_MODULE "1") { run-cmd cargo ...$args }
+}
+
+# cargo-org, for output that is captured (no `run-cmd` lines in it).
+def --wrapped cargo-org-out [...args] {
     with-env ((org org-env) | insert PYO3_BUILD_EXTENSION_MODULE "1") { ^cargo ...$args }
 }
 
 # Format the Rust code (`--check` only checks).
 def "nur fmt" [--check] {
-    if $check { cargo fmt --all -- --check } else { cargo fmt --all }
+    if $check { run-cmd cargo fmt --all -- --check } else { run-cmd cargo fmt --all }
 }
 
 # Clippy, warnings as errors.
@@ -33,7 +39,7 @@ def "nur test" [] {
 # Fails if a crate of the organization is built twice (two sources, or a
 # `[patch]` applied on one side only).
 def "nur check-dupes" [] {
-    let found = org tree-dupes (cargo-org tree --workspace --duplicates -e normal,build,dev | complete)
+    let found = org tree-dupes (cargo-org-out tree --workspace --duplicates -e normal,build,dev | complete)
     if ($found | is-not-empty) {
         error make --unspanned {msg: $"built twice: ($found | str join ', ')"}
     }
@@ -83,13 +89,13 @@ def "nur unlink" [name?: string] {
 # without default features, then the workspace on the highest one.
 def "nur msrv" [] {
     let groups = (
-        cargo-org metadata --no-deps --format-version 1 | from json | get packages
+        cargo-org-out metadata --no-deps --format-version 1 | from json | get packages
         | select name rust_version | group-by rust_version
         | transpose version crates
         | sort-by {|g| $g.version | split row "." | each { into int } | $in.0 * 1000 + $in.1 }
     )
     for group in $groups {
-        rustup toolchain install $group.version --profile minimal --no-self-update
+        run-cmd rustup toolchain install $group.version --profile minimal --no-self-update
         let names = $group.crates | get name
         print $"Rust ($group.version): ($names | str join ', ')"
         cargo-org $"+($group.version)" check --no-default-features ...($names | each {|n| [-p $n] } | flatten)
@@ -102,7 +108,7 @@ def "nur msrv" [] {
 # Licenses, advisories and sources of the dependencies (.config/deny.toml).
 # mise installs cargo-deny on first use (.config/mise.deny.toml).
 def "nur deny" [] {
-    with-env ((org org-env) | insert MISE_ENV deny) { ^mise exec cargo:cargo-deny -- cargo deny check }
+    with-env ((org org-env) | insert MISE_ENV deny) { run-cmd mise exec cargo:cargo-deny -- cargo deny check }
 }
 
 # Updates the lockfile's revision of organization crates (all, or one).
