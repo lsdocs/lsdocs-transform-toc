@@ -1,3 +1,3 @@
 # Tools for `nur deny` (it sets MISE_ENV=deny).
 [tools]
-"cargo:cargo-deny" = "0.22.0"
+"cargo:cargo-deny" = "0.22.2"
